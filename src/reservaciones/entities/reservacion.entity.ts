@@ -1,4 +1,6 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, PrimaryGeneratedColumn, OneToMany } from 'typeorm';
+import { Pago } from './pago.entity';
+
 @Entity('reservaciones')
 export class Reservacion {
   @PrimaryGeneratedColumn() id: number;
@@ -8,6 +10,14 @@ export class Reservacion {
   @Column({ name: 'fecha_inicio', type: 'date', nullable: true })
   fechaInicio: string;
   @Column({ name: 'fecha_fin', type: 'date', nullable: true }) fechaFin: string;
+  @Column({
+    name: 'cortesia_porcentaje',
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    default: 0,
+  })
+  cortesiaPorcentaje: number;
   @Column({ nullable: true }) adultos: number;
   @Column({ nullable: true }) menores: number;
   @Column({
@@ -23,4 +33,7 @@ export class Reservacion {
     update: false,
   })
   createdAt: Date;
+
+  @OneToMany(() => Pago, (pago) => pago.reservacion, { cascade: true })
+  pagos: Pago[];
 }

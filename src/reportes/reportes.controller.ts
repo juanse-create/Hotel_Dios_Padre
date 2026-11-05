@@ -91,7 +91,7 @@ export class ReportesController {
       `SELECT COALESCE(th.nombre, 'Sin tipo') tipo,
               COUNT(*) usos,
               SUM(GREATEST(DATEDIFF(r.fecha_fin, r.fecha_inicio), 1)) dias,
-              ROUND(SUM(COALESCE(NULLIF(rh.precio, 0), th.precio, 0) * GREATEST(DATEDIFF(r.fecha_fin, r.fecha_inicio), 1)), 2) ganancias
+              ROUND(SUM(COALESCE(NULLIF(rh.precio, 0), th.precio, 0) * GREATEST(DATEDIFF(r.fecha_fin, r.fecha_inicio), 1) * (1 - r.cortesia_porcentaje / 100)), 2) ganancias
        FROM reservacion_habitaciones rh
        JOIN habitaciones h ON h.id=rh.habitacion_id
        LEFT JOIN tipos_habitacion th ON th.id=h.tipo_id
@@ -122,7 +122,7 @@ export class ReportesController {
          SELECT rh.id enlace_id,
                 r.fecha_inicio dia,
                 r.fecha_fin,
-                COALESCE(NULLIF(rh.precio, 0), th.precio, 0) precio
+                COALESCE(NULLIF(rh.precio, 0), th.precio, 0) * (1 - r.cortesia_porcentaje / 100) precio
          FROM reservacion_habitaciones rh
          JOIN habitaciones h ON h.id=rh.habitacion_id
          LEFT JOIN tipos_habitacion th ON th.id=h.tipo_id

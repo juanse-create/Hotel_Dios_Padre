@@ -28,8 +28,16 @@ export class ReservacionesController {
   }
 
   @Get('disponibles')
-  disponibles(@Query('inicio') inicio: string, @Query('fin') fin: string) {
-    return this.service.disponibles(inicio, fin);
+  disponibles(
+    @Query('inicio') inicio: string,
+    @Query('fin') fin: string,
+    @Query('reservacionId') reservacionId?: string,
+  ) {
+    return this.service.disponibles(
+      inicio,
+      fin,
+      reservacionId ? Number(reservacionId) : undefined,
+    );
   }
 
   @Post('bloqueo/:id')
