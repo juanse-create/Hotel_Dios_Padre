@@ -33,7 +33,7 @@ form.addEventListener('submit', async (event) => {
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('usuario', JSON.stringify(data.usuario));
     location.href =
-      data.usuario.rol === 'Administrador'
+      ['Administrador', 'Superadministrador'].includes(data.usuario.rol)
         ? '/admin.html'
         : data.usuario.rol === 'Taquilla'
           ? '/taquilla.html'

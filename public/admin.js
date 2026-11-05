@@ -1,6 +1,6 @@
 const token = localStorage.getItem('token'),
   user = JSON.parse(localStorage.getItem('usuario') || 'null');
-if (!token || user?.rol !== 'Administrador') location.href = '/';
+if (!token || !['Administrador', 'Superadministrador'].includes(user?.rol)) location.href = '/';
 const api = async (url, opt = {}) => {
   const isForm = opt.body instanceof FormData;
   const headers = { Authorization: 'Bearer ' + token, ...opt.headers };
@@ -48,6 +48,7 @@ const modules = [
   ],
   ['Reportes', 'reportes', '<i class="fa-solid fa-chart-line"></i>'],
 ];
+if (user?.rol === 'Superadministrador') modules.push(['Cortesías', 'cortesias', '<i class="fa-solid fa-percent"></i>']);
 // Inyectamos el icono junto al nombre (x[2] es el icono y x[0] el texto)
 nav.innerHTML = modules
   .map(
@@ -87,6 +88,7 @@ async function load(id, label) {
     if (id === 'recepcion') return await recepcion();
     if (id === 'limpieza') return await limpieza();
     if (id === 'usuarios') return await usuarios();
+    if (id === 'cortesias') return await cortesias();
     if (id === 'reportes') return await reportes();
     return await crud(id);
   } catch (e) {
@@ -437,6 +439,7 @@ async function editarReserva(r) {
   f.huespedId.value = r.huesped_id;
   f.fechaInicio.value = String(r.fecha_inicio).slice(0, 10);
   f.fechaFin.value = String(r.fecha_fin).slice(0, 10);
+  if (f.cortesiaPorcentaje) f.cortesiaPorcentaje.value = Number(r.cortesia_porcentaje || 0);
   f.adultos.value = r.adultos;
   f.menores.value = r.menores;
   await buscarDisponibles();
@@ -621,6 +624,7 @@ async function editarReserva(r) {
   ].forEach((campo) => (f[campo].value = huesped[campo] || ''));
   f.fechaInicio.value = String(r.fecha_inicio).slice(0, 10);
   f.fechaFin.value = String(r.fecha_fin).slice(0, 10);
+  if (f.cortesiaPorcentaje) f.cortesiaPorcentaje.value = Number(r.cortesia_porcentaje || 0);
   f.adultos.value = r.adultos;
   f.menores.value = r.menores;
   await buscarDisponibles();
@@ -879,21 +883,10 @@ async function editarReserva(r) {
   ].forEach((campo) => (f[campo].value = huesped[campo] || ''));
   f.fechaInicio.value = String(r.fecha_inicio).slice(0, 10);
   f.fechaFin.value = String(r.fecha_fin).slice(0, 10);
+  if (f.cortesiaPorcentaje) f.cortesiaPorcentaje.value = Number(r.cortesia_porcentaje || 0);
   f.adultos.value = r.adultos;
   f.menores.value = r.menores;
   await buscarDisponibles();
-  const nums = String(r.habitaciones_detalle || '')
-    .split(',')
-    .map((x) => x.split('|')[0]);
-  const all = await api('/habitaciones');
-  all
-    .filter((h) => nums.includes(String(h.numero)))
-    .forEach((h) => {
-      const cb = document.querySelector(
-        `input[name=habitacionIds][value="${h.id}"]`,
-      );
-      if (cb) cb.checked = true;
-    });
 }
 
 function limpiezaCard(row) {
@@ -917,6 +910,7 @@ async function limpieza() {
 }
 const bloqueosReserva = new Set();
 async function cambiarBloqueo(input) {
+  if (input.dataset.asignadaActualmente === 'true') return;
   try {
     await api(`/reservaciones/bloqueo/${input.value}`, {
       method: input.checked ? 'POST' : 'DELETE',
@@ -947,14 +941,18 @@ async function buscarDisponibles() {
   if (!f.fechaInicio.value || !f.fechaFin.value)
     return alert('Selecciona las fechas');
   await liberarBloqueosReserva();
+  const reservacionId = Number(f.id.value) || null;
+  const reservacionQuery = reservacionId
+    ? `&reservacionId=${encodeURIComponent(reservacionId)}`
+    : '';
   const rooms = await api(
-    `/reservaciones/disponibles?inicio=${encodeURIComponent(f.fechaInicio.value)}&fin=${encodeURIComponent(f.fechaFin.value)}`,
+    `/reservaciones/disponibles?inicio=${encodeURIComponent(f.fechaInicio.value)}&fin=${encodeURIComponent(f.fechaFin.value)}${reservacionQuery}`,
   );
   availableRooms.innerHTML = rooms.length
     ? rooms
         .map(
           (h) =>
-            `<label class="available-room"><input type=checkbox name=habitacionIds value=${h.id} onchange="cambiarBloqueo(this)"><div class=room-photo>${h.fotoUrl ? `<img src="${esc(h.fotoUrl)}">` : '<span>Sin foto</span>'}</div><strong>Habitación ${esc(h.numero)}</strong><span>${esc(h.tipo?.nombre || 'Sin tipo')} · Piso ${esc(h.piso ?? '-')}</span></label>`,
+            `<label class="available-room"><input type=checkbox name=habitacionIds value=${h.id} ${h.asignadaActualmente ? 'checked data-asignada-actualmente=true' : ''} onchange="cambiarBloqueo(this)"><div class=room-photo>${h.fotoUrl ? `<img src="${esc(h.fotoUrl)}">` : '<span>Sin foto</span>'}</div><strong>Habitación ${esc(h.numero)}</strong><span>${esc(h.tipo?.nombre || 'Sin tipo')} · Piso ${esc(h.piso ?? '-')}${h.asignadaActualmente ? ' · Asignada actualmente' : ''}</span></label>`,
         )
         .join('')
     : '<p>No hay habitaciones disponibles para esas fechas.</p>';
@@ -1157,6 +1155,7 @@ async function usuarios() {
             <option value="">Selecciona un rol</option>
 
             ${roles
+              .filter((r) => r.nombre !== 'Superadministrador' || user?.rol === 'Superadministrador')
               .map((r) => `<option value="${r.id}">${esc(r.nombre)}</option>`)
               .join('')}
           </select>
@@ -1454,3 +1453,517 @@ document.querySelectorAll('aside nav a, aside nav button, aside nav ul li').forE
         }
     });
 });
+
+// =========================================================
+// MÓDULO IV. FORMAS DE PAGO (INYECTADO AL FINAL SIN CHOCAR)
+// =========================================================
+var listaPagosReserva = [];
+var catalogoHabitacionesPago = [];
+var totalReservacionCalculado = 0;
+
+async function cargarPreciosHabitacionesPago() {
+  try {
+    catalogoHabitacionesPago = await api('/habitaciones');
+  } catch (e) {
+    catalogoHabitacionesPago = [];
+  }
+}
+
+function calcularNochesEstancia() {
+  const f = document.getElementById('reservaForm');
+  if (!f || !f.fechaInicio?.value || !f.fechaFin?.value) return 1;
+  const inicio = new Date(f.fechaInicio.value);
+  const fin = new Date(f.fechaFin.value);
+  const diff = Math.round((fin - inicio) / 86400000);
+  return diff > 0 ? diff : 1;
+}
+
+function recalcularSaldosPago() {
+  const input = document.querySelector('[name=cortesiaPorcentaje]');
+  if (!input) return false;
+  const maximo =
+    input.dataset.maximoAutorizado === undefined
+      ? null
+      : Number(input.dataset.maximoAutorizado);
+  const validacion = CortesiasUI.validarPorcentaje(
+    input.value,
+    maximo,
+    input.validity.badInput,
+  );
+  if (input.dataset.errorLimite) {
+    validacion.valido = false;
+    validacion.mensaje = input.dataset.errorLimite;
+  }
+  input.setCustomValidity(validacion.mensaje);
+  input.setAttribute('aria-invalid', String(!validacion.valido));
+  const error = document.getElementById('errorCortesia');
+  if (error) {
+    error.textContent = validacion.mensaje;
+    error.hidden = validacion.valido;
+  }
+  document.querySelectorAll('[data-guardar-reserva]').forEach((button) => {
+    button.disabled = !validacion.valido;
+  });
+
+  const noches = calcularNochesEstancia();
+  const subtotal = [
+    ...document.querySelectorAll('input[name=habitacionIds]:checked'),
+  ].reduce((suma, checkbox) => {
+    const hab = catalogoHabitacionesPago.find(
+      (h) => Number(h.id) === Number(checkbox.value),
+    );
+    const precio = Number(hab?.tipo?.precio ?? hab?.precio ?? 0);
+    return (
+      suma + (Number.isFinite(precio) && precio >= 0 ? precio * noches : 0)
+    );
+  }, 0);
+  const totalPagado = listaPagosReserva.reduce(
+    (suma, p) => suma + Number(p.importe || 0),
+    0,
+  );
+  const importes = CortesiasUI.calcularImportes(
+    subtotal,
+    totalPagado,
+    validacion,
+  );
+  totalReservacionCalculado = importes.total;
+  const inputSubtotal = document.getElementById('pago_total_manual');
+  if (inputSubtotal) inputSubtotal.value = subtotal.toFixed(2);
+  const mostrar = (id, valor) => {
+    const element = document.getElementById(id);
+    if (element)
+      element.textContent = valor === null ? '—' : '$' + valor.toFixed(2);
+  };
+  mostrar('resumen_descuento_reserva', importes.descuento);
+  mostrar('resumen_total_reserva', importes.total);
+  mostrar('resumen_total_pagado', importes.pagado);
+  mostrar('resumen_saldo_pendiente', importes.saldo);
+  return validacion.valido;
+}
+
+function cambiarMetodoPagoUI() {
+  const metodo = document.getElementById('pago_metodo')?.value || '';
+  const campoTerm = document.getElementById('wrap_terminacion_tarjeta');
+  const inputTerm = document.getElementById('pago_terminacion');
+  const lblBanco = document.getElementById('lbl_pago_banco');
+  const lblRef = document.getElementById('lbl_pago_referencia');
+
+  const esTarjeta =
+    metodo === 'Tarjeta de débito' || metodo === 'Tarjeta de crédito';
+  if (campoTerm) campoTerm.style.display = esTarjeta ? '' : 'none';
+  if (!esTarjeta && inputTerm) inputTerm.value = '';
+
+  if (lblBanco) {
+    lblBanco.textContent =
+      metodo === 'Transferencia bancaria' ? 'Banco receptor *' : 'Banco *';
+  }
+  if (lblRef) {
+    lblRef.textContent = esTarjeta
+      ? 'Referencia / Núm. operación (opcional)'
+      : 'Número o referencia de operación *';
+  }
+}
+
+function registrarPagoEnLista() {
+  const metodo = document.getElementById('pago_metodo')?.value || '';
+  const importe = parseFloat(document.getElementById('pago_importe')?.value);
+  const banco = (document.getElementById('pago_banco')?.value || '').trim();
+  const fecha = document.getElementById('pago_fecha')?.value || '';
+  const terminacion = (
+    document.getElementById('pago_terminacion')?.value || ''
+  ).trim();
+  const referencia = (
+    document.getElementById('pago_referencia')?.value || ''
+  ).trim();
+
+  if (!metodo) return alert('Selecciona una forma de pago.');
+  if (isNaN(importe) || importe <= 0)
+    return alert('Ingresa un importe válido mayor a 0.');
+  if (!banco) return alert('Ingresa el banco.');
+  if (!fecha) return alert('Ingresa la fecha del pago.');
+
+  const esTarjeta =
+    metodo === 'Tarjeta de débito' || metodo === 'Tarjeta de crédito';
+  if (esTarjeta && !/^\d{4}$/.test(terminacion)) {
+    return alert(
+      'Por seguridad, ingresa exactamente los últimos 4 dígitos numéricos de la tarjeta.',
+    );
+  }
+  if (!esTarjeta && !referencia) {
+    return alert('Ingresa el número o referencia de operación.');
+  }
+
+  listaPagosReserva.push({
+    idTemp: Date.now(),
+    metodo_pago: metodo,
+    importe: Number(importe.toFixed(2)),
+    banco,
+    fecha_pago: fecha,
+    terminacion_tarjeta: esTarjeta ? terminacion : null,
+    referencia: referencia || null,
+  });
+
+  document.getElementById('pago_importe').value = '';
+  document.getElementById('pago_banco').value = '';
+  document.getElementById('pago_terminacion').value = '';
+  document.getElementById('pago_referencia').value = '';
+
+  renderTablaPagosReserva();
+}
+
+function quitarPagoDeLista(idTemp) {
+  listaPagosReserva = listaPagosReserva.filter((p) => p.idTemp !== idTemp);
+  renderTablaPagosReserva();
+}
+
+function renderTablaPagosReserva() {
+  const tbody = document.getElementById('tbody_pagos_reserva');
+  if (!tbody) return;
+
+  if (!listaPagosReserva.length) {
+    tbody.innerHTML =
+      '<tr><td colspan="6" style="text-align:center;color:#666;">Aún no se han registrado pagos para esta reservación.</td></tr>';
+  } else {
+    tbody.innerHTML = listaPagosReserva
+      .map(
+        (p) => `
+      <tr>
+        <td>${esc(p.metodo_pago)}</td>
+        <td>${esc(p.banco)}</td>
+        <td>${p.terminacion_tarjeta ? '**** ' + esc(p.terminacion_tarjeta) : '-'}</td>
+        <td>${esc(p.referencia || '-')}</td>
+        <td>${esc(p.fecha_pago)}</td>
+        <td><strong>$${Number(p.importe).toFixed(2)}</strong></td>
+        <td><button type="button" class="primary danger" style="padding:4px 8px;" onclick="quitarPagoDeLista(${p.idTemp})">Quitar</button></td>
+      </tr>
+    `,
+      )
+      .join('');
+  }
+  recalcularSaldosPago();
+}
+
+// Sobrescribimos limpiamente formularioReservaHtml agregando el Paso 4
+window.formularioReservaHtml = function (titulo) {
+  listaPagosReserva = [];
+  totalReservacionCalculado = null;
+  const hoy = fechaLocal();
+  setTimeout(() => {
+    cargarPreciosHabitacionesPago().then(() => renderTablaPagosReserva());
+  }, 50);
+
+  return `<section class="reservation-hero"><div><p class=eyebrow>Atención presencial</p><h2>${titulo}</h2><p>Captura al cliente, consulta disponibilidad y confirma su habitación inmediatamente.</p></div><div class=instant-badge>Confirmación Inmediata</div></section>
+  <div class="box reservation-form-box">
+    <form id=reservaForm>
+      <input type=hidden name=id>
+      <input type=hidden name=huespedId>
+      <fieldset>
+        <legend>1. Datos del cliente</legend>
+        <div class=form-grid>
+          ${campo('Nombre *', '<input name=nombre placeholder="Ej. María" required>')}
+          ${campo('Apellido paterno *', '<input name=apellidoPaterno placeholder="Ej. Hernández" required>')}
+          ${campo('Apellido materno', '<input name=apellidoMaterno placeholder="Ej. López">')}
+          ${campo('Teléfono *', '<input name=telefono type=tel placeholder="Ej. 772 123 4567" required>')}
+          ${campo('Correo electrónico', '<input name=correo type=email placeholder="cliente@correo.com">')}
+          ${campo('Identificación', '<input name=identificacion placeholder="INE o pasaporte">')}
+          ${campo('Dirección', '<textarea name=direccion placeholder="Domicilio del cliente"></textarea>', 'wide')}
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>2. Datos de la estancia</legend>
+        <div class=form-grid>
+          ${campo('Fecha de entrada *', '<input name=fechaInicio type=date required onchange="recalcularSaldosPago()">')}
+          ${campo('Fecha de salida *', '<input name=fechaFin type=date required onchange="recalcularSaldosPago()">')}
+          ${campo('Cortesía (%)', '<input name=cortesiaPorcentaje type=number min=0 max=100 step=0.01 value=0 required aria-describedby="limiteCortesia errorCortesia" oninput="recalcularSaldosPago()" onchange="recalcularSaldosPago()"><small id=errorCortesia role=alert aria-live=polite style="color:#b91c1c" hidden></small>')}
+          <p id=limiteCortesia>Consultando límite autorizado…</p>
+          ${campo('Adultos *', '<input name=adultos type=number min=1 value=1 required>')}
+          ${campo('Menores', '<input name=menores type=number min=0 value=0>')}
+        </div>
+        <div class="form-btn-container">
+          <button type=button class="btn-search action-btn" onclick="buscarDisponibles()"><i class="fa-solid fa-magnifying-glass"></i> Buscar habitaciones</button>
+        </div>
+      </fieldset>
+    </form>
+
+    <section class=room-selection onchange="recalcularSaldosPago()">
+      <h3>3. Selecciona la habitación</h3>
+      <p class=helper>Las fotografías te ayudarán a identificar cada habitación.</p>
+      <div id=availableRooms class="available-grid empty-selection">Primero selecciona las fechas y busca disponibilidad.</div>
+    </section>
+
+    <section class=room-selection style="margin-top:24px; border-top:1px solid #e2e8f0; padding-top:20px;">
+      <h3>4. Formas de pago (Obligatorio)</h3><p>La cortesía reduce el total de la estancia; no es un pago. Los pagos registrados se conservan.</p>
+      <p class=helper style="background:#fff3cd; color:#664d03; padding:10px 12px; border-radius:6px; border:1px solid #ffecb5;">
+        <i class="fa-solid fa-shield-halved"></i> <strong>Seguridad:</strong> No ingreses ni almacenes números completos de tarjeta ni CVV. Registra únicamente los últimos 4 dígitos.
+      </p>
+
+      <div class=form-grid style="margin-top:12px;">
+        <label class="form-field">
+          <span>Forma de pago *</span>
+          <select id="pago_metodo" onchange="cambiarMetodoPagoUI()">
+            <option value="">Selecciona opción...</option>
+            <option value="Tarjeta de débito">1. Tarjeta de débito</option>
+            <option value="Tarjeta de crédito">2. Tarjeta de crédito</option>
+            <option value="Transferencia bancaria">3. Transferencia bancaria</option>
+            <option value="Depósito bancario">4. Depósito bancario</option>
+          </select>
+        </label>
+
+        <label class="form-field">
+          <span>Importe ($) *</span>
+          <input id="pago_importe" type="number" min="0.01" step="0.01" placeholder="Ej. 1500.00">
+        </label>
+
+        <label class="form-field">
+          <span id="lbl_pago_banco">Banco *</span>
+          <input id="pago_banco" type="text" placeholder="Ej. BBVA, Banamex, Santander">
+        </label>
+
+        <label class="form-field">
+          <span>Fecha del pago *</span>
+          <input id="pago_fecha" type="date" data-allow-past value="${hoy}">
+        </label>
+
+        <label class="form-field" id="wrap_terminacion_tarjeta" style="display:none;">
+          <span>Terminación tarjeta (últimos 4 dígitos) *</span>
+          <input id="pago_terminacion" type="text" maxlength="4" inputmode="numeric" pattern="[0-9]{4}" placeholder="Ej. 4821" oninput="this.value=this.value.replace(/\\D/g,'').slice(0,4)">
+        </label>
+
+        <label class="form-field">
+          <span id="lbl_pago_referencia">Número o referencia de operación</span>
+          <input id="pago_referencia" type="text" placeholder="Folio / autorización / referencia">
+        </label>
+
+        <label class="form-field">
+          <span>Subtotal antes de cortesía ($)</span>
+          <input id="pago_total_manual" readonly type="number" min="0" step="0.01" placeholder="Se calcula al elegir hab." oninput="recalcularSaldosPago()">
+        </label>
+      </div>
+
+      <div class="form-btn-container" style="margin-top:12px;">
+        <button type="button" class="primary" onclick="registrarPagoEnLista()">
+          <i class="fa-solid fa-plus"></i> Agregar pago a la reservación
+        </button>
+      </div>
+
+      <div class="box table-wrap" style="margin-top:14px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Forma de pago</th>
+              <th>Banco</th>
+              <th>Terminación</th>
+              <th>Referencia / Operación</th>
+              <th>Fecha</th>
+              <th>Importe</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tbody_pagos_reserva"></tbody>
+        </table>
+      </div>
+
+      <div class="cards" style="margin-top:14px; display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+        <div class="card" style="padding:12px; background:#f8fafc; border-radius:8px; border:1px solid #cbd5e1;">
+          <span>Cortesía aplicada</span><strong id="resumen_descuento_reserva" style="display:block; font-size:1.3rem;">—</strong>
+        </div>
+        <div class="card" style="padding:12px; background:#f8fafc; border-radius:8px; border:1px solid #cbd5e1;">
+          <span>Total de reservación</span>
+          <strong id="resumen_total_reserva" style="display:block; font-size:1.3rem; color:#0f172a;">—</strong>
+        </div>
+        <div class="card" style="padding:12px; background:#f0fdf4; border-radius:8px; border:1px solid #bbf7d0;">
+          <span>Total pagado</span>
+          <strong id="resumen_total_pagado" style="display:block; font-size:1.3rem; color:#166534;">$0.00</strong>
+        </div>
+        <div class="card" style="padding:12px; background:#fef2f2; border-radius:8px; border:1px solid #fecaca;">
+          <span>Saldo pendiente</span>
+          <strong id="resumen_saldo_pendiente" style="display:block; font-size:1.3rem; color:#991b1b;">—</strong>
+        </div>
+      </div>
+    </section>
+
+    <div class=reservation-submit>
+      <span class=confirmation-note>✓ Se guardará como <strong>Confirmada</strong></span>
+      <button class="primary create-button" data-guardar-reserva disabled onclick="guardarReserva()"><i class="fa-solid fa-floppy-disk"></i> Crear reservación</button>
+      <button class="primary danger" type="button" onclick="limpiarReservaActual()"><i class="fa-solid fa-broom"></i> Limpiar</button>
+    </div>
+  </div>`;
+};
+
+// Sobrescribimos guardarReserva para exigir al menos un pago y enviarlo al backend
+window.guardarReserva = async function () {
+  const f = reservaForm;
+  if (!recalcularSaldosPago()) {
+    f.cortesiaPorcentaje.reportValidity();
+    return;
+  }
+  if (!f.reportValidity()) return;
+  const ids = [
+    ...document.querySelectorAll('input[name=habitacionIds]:checked'),
+  ].map((x) => Number(x.value));
+  if (!ids.length) return alert('Selecciona al menos una habitación');
+  if (!listaPagosReserva.length) {
+    return alert(
+      'Toda reservación debe contar obligatoriamente con al menos una forma de pago registrada (Paso 4).',
+    );
+  }
+
+  const totalPagado = listaPagosReserva.reduce(
+    (acc, p) => acc + Number(p.importe || 0),
+    0,
+  );
+  const saldoPendiente = Math.max(0, totalReservacionCalculado - totalPagado);
+
+  const d = {
+    huespedId: Number(f.huespedId.value) || undefined,
+    huesped: {
+      nombre: f.nombre.value,
+      apellidoPaterno: f.apellidoPaterno.value,
+      apellidoMaterno: f.apellidoMaterno.value,
+      telefono: f.telefono.value,
+      correo: f.correo.value,
+      identificacion: f.identificacion.value,
+      direccion: f.direccion.value,
+    },
+    fechaInicio: f.fechaInicio.value,
+    fechaFin: f.fechaFin.value,
+    adultos: Number(f.adultos.value),
+    menores: Number(f.menores.value),
+    habitacionIds: ids,
+    confirmar: true,
+    totalReservacion: totalReservacionCalculado,
+    totalPagado: totalPagado,
+    saldoPendiente: saldoPendiente,
+    cortesiaPorcentaje: Number(f.cortesiaPorcentaje.value),
+    pagos: listaPagosReserva.map(({ idTemp, ...resto }) => resto),
+  };
+
+  const id = f.id.value;
+  try {
+    await api(id ? `/reservaciones/${id}` : '/reservaciones', {
+      method: id ? 'PATCH' : 'POST',
+      body: JSON.stringify(d),
+    });
+  } catch (error) {
+    return alert(error.message);
+  }
+  alert(id ? 'Reservación actualizada' : 'Reservación creada correctamente');
+  listaPagosReserva = [];
+  origenReserva === 'recepcion' ? recepcion() : reservaciones();
+};
+// Mostrar Total / Pagado / Saldo en cada tarjeta de reservación y cargar pagos al editar
+window.reservaCard = function (r) {
+  const totalRes = Number(r.total_reservacion || 0);
+  const totalPag = Number(r.total_pagado || 0);
+  const saldoPend = Number(
+    r.saldo_pendiente ?? Math.max(0, totalRes - totalPag),
+  );
+  const pagosHtml = (r.pagos_detalle || [])
+    .map(
+      (p) =>
+        `<small style="display:block; color:#334155;">• ${esc(p.metodo_pago)} (${esc(p.banco)}${p.terminacion_tarjeta ? ' ****' + esc(p.terminacion_tarjeta) : ''}): <strong>$${Number(p.importe).toFixed(2)}</strong></small>`,
+    )
+    .join('');
+
+  return `<article class=reservation-card>
+    <div>
+      <span class=folio>${esc(r.folio)}</span>
+      <span class="status status-${String(r.estado).toLowerCase().replaceAll(' ', '-')}">${esc(r.estado)}</span>
+    </div>
+    <h3>${esc(r.huesped_nombre)} ${esc(r.huesped_apellido || '')}</h3>
+    <p>${esc(String(r.fecha_inicio).slice(0, 10))} → ${esc(String(r.fecha_fin).slice(0, 10))}</p>
+    <div class=selected-rooms>${detalleHabitaciones(r.habitaciones_detalle)}</div>
+    <div style="margin:8px 0; padding:8px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; font-size:0.85rem;">
+      <div>Cortesía aplicada: <strong>${Number(r.cortesia_porcentaje || 0).toFixed(2)}%</strong></div>
+      <div>Total reservación: <strong>$${totalRes.toFixed(2)}</strong></div>
+      <div style="color:#166534;">Total pagado: <strong>$${totalPag.toFixed(2)}</strong></div>
+      <div style="color:${saldoPend > 0 ? '#991b1b' : '#166534'};">Saldo pendiente: <strong>$${saldoPend.toFixed(2)}</strong></div>
+      ${pagosHtml ? `<div style="margin-top:6px; border-top:1px dashed #cbd5e1; padding-top:4px;">${pagosHtml}</div>` : ''}
+    </div>
+    <small>Registró: ${esc(r.recepcionista_nombre || 'Recepción')}</small>
+    <div class=actions>
+      ${!['Cancelada', 'Finalizada'].includes(r.estado) ? `<button class="primary edit-button" onclick='editarReserva(${JSON.stringify(r).replace(/'/g, '&#39;')})'><i class="fa-solid fa-pen-to-square"></i> Editar</button><button class="primary danger" onclick="cambiarReserva(${r.id},'Cancelada')"><i class="fa-solid fa-ban"></i> Cancelar</button>` : ''}
+      <button class="primary danger" onclick="eliminarReserva(${r.id})"><i class="fa-solid fa-trash-can"></i> Eliminar</button>
+    </div>
+  </article>`;
+};
+
+window.editarReserva = async function (r) {
+  const destino = origenReserva;
+  const huesped = await api(`/huespedes/${r.huesped_id}`);
+  if (destino === 'recepcion') {
+    await recepcion();
+    mostrarRecepcionTab('nueva');
+  } else {
+    await reservaciones();
+  }
+  const f = reservaForm;
+  f.id.value = r.id;
+  f.huespedId.value = r.huesped_id;
+  [
+    'nombre',
+    'apellidoPaterno',
+    'apellidoMaterno',
+    'telefono',
+    'correo',
+    'identificacion',
+    'direccion',
+  ].forEach((campo) => (f[campo].value = huesped[campo] || ''));
+  f.fechaInicio.value = String(r.fecha_inicio).slice(0, 10);
+  f.fechaFin.value = String(r.fecha_fin).slice(0, 10);
+  if (f.cortesiaPorcentaje) f.cortesiaPorcentaje.value = Number(r.cortesia_porcentaje || 0);
+  f.adultos.value = r.adultos;
+  f.menores.value = r.menores;
+  await buscarDisponibles();
+
+  listaPagosReserva = (r.pagos_detalle || []).map((p, idx) => ({
+    idTemp: Date.now() + idx,
+    metodo_pago: p.metodo_pago,
+    importe: Number(p.importe),
+    banco: p.banco,
+    fecha_pago: String(p.fecha_pago).slice(0, 10),
+    terminacion_tarjeta: p.terminacion_tarjeta || null,
+    referencia: p.referencia || null,
+  }));
+  renderTablaPagosReserva();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+async function cortesias() {
+  try {
+    const config = await api('/configuracion/cortesias');
+    content.innerHTML = `<div class="box"><h2>Límite de cortesías</h2><p>Porcentaje máximo para nuevas cortesías y modificaciones de reservaciones. No cambia reservaciones guardadas.</p><form id="cortesiasForm"><label>Máximo autorizado (%) <input name="maximo" type="number" min="0" max="100" step="0.01" required value="${config.maximoPorcentaje}"></label><button class="primary">Guardar límite</button></form></div>`;
+    document.getElementById('cortesiasForm').onsubmit = async (event) => {
+      event.preventDefault();
+      try {
+        await api('/configuracion/cortesias', { method: 'PATCH', body: JSON.stringify({ maximoPorcentaje: Number(event.target.maximo.value) }) });
+        alert('Límite actualizado');
+      } catch (error) { alert(error.message); }
+    };
+  } catch (error) { content.textContent = error.message; }
+}
+
+// El formulario se reutiliza en Reservaciones y Recepción.
+const observarCortesia = new MutationObserver(async () => {
+  const input = document.querySelector('[name=cortesiaPorcentaje]');
+  if (!input || input.dataset.limiteConsultado) return;
+  input.dataset.limiteConsultado = 'true';
+  recalcularSaldosPago();
+  try {
+    const config = await api('/configuracion/cortesias');
+    if (!input.isConnected) return;
+    input.max = config.maximoPorcentaje;
+    input.dataset.maximoAutorizado = String(config.maximoPorcentaje);
+    document.getElementById('limiteCortesia').textContent =
+      `Máximo autorizado: ${config.maximoPorcentaje}%`;
+  } catch (error) {
+    if (input.isConnected) {
+      input.dataset.errorLimite =
+        'No se pudo consultar el máximo autorizado. Vuelve a abrir el formulario.';
+      document.getElementById('limiteCortesia').textContent = error.message;
+    }
+  } finally {
+    if (input.isConnected) recalcularSaldosPago();
+  }
+});
+observarCortesia.observe(content, { childList: true, subtree: true });

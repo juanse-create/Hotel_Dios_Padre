@@ -15,8 +15,16 @@ export class RolesGuard implements CanActivate {
       context.getClass(),
     ]);
     if (!roles?.length) return true;
-    const user = context.switchToHttp().getRequest().user;
-    if (!user || !roles.includes(user.rol))
+    const user = context
+      .switchToHttp()
+      .getRequest<{ user?: { rol: string } }>().user;
+    if (
+      !user ||
+      !(
+        roles.includes(user.rol) ||
+        (user.rol === 'Superadministrador' && roles.includes('Administrador'))
+      )
+    )
       throw new ForbiddenException(
         'No tienes permisos para acceder a este recurso',
       );

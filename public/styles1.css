@@ -1,0 +1,150 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #ffffff;
+    color: #0f172a;
+    overflow-x: hidden;
+}
+
+/* Envoltorio a pantalla completa */
+.login-wrapper {
+    min-height: 100vh;
+    width: 100vw;
+    display: flex;
+}
+
+/* Contenedor dividido en 2 columnas iguales (50% / 50%) */
+.login-container {
+    display: flex;
+    width: 100%;
+    min-height: 100vh;
+    border-radius: 0; /* Quita los bordes redondeados en PC */
+    box-shadow: none;
+}
+
+/* Columna Izquierda: Imagen del Balneario al 50% */
+.login-hero-image {
+    flex: 1; /* Ocupa el 50% del ancho */
+    background: url('hotel-dios-padre-.png') center/cover no-repeat;
+    min-height: 100vh;
+}
+
+/* Columna Derecha: Formulario al 50% */
+.login-form-section {
+    flex: 1; /* Ocupa el otro 50% del ancho */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 3rem 2rem;
+    background: #ffffff;
+}
+
+/* Formulario */
+.card {
+    display: grid;
+    gap: 1rem;
+    width: 100%;
+    max-width: 380px; /* Ancho cómodo para los campos */
+}
+
+/* Logo arriba del título */
+.card-logo {
+    max-width: 130px;
+    margin: 0 auto 0.2rem;
+    display: block;
+    height: auto;
+}
+
+.card h2 {
+    margin: 0 0 0.5rem 0;
+    color: #0369a1;
+    text-align: center;
+    font-size: 1.8rem;
+}
+
+label {
+    display: grid;
+    gap: .3rem;
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #334155;
+}
+
+input,
+select,
+button {
+    padding: .9rem;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    font-size: 1rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus {
+    border-color: #1877c9;
+}
+
+button {
+    background: #1877c9;
+    color: #fff;
+    border: 0;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 0.5rem;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #0284c7;
+}
+
+#error {
+    color: #b91c1c;
+    min-height: 1.2rem;
+    margin: 0;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+.copyright {
+    display: block;
+    text-align: center;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    margin-top: 1rem;
+}
+
+/* ==========================================
+   ADAPTACIÓN PARA CELULARES Y TABLETS
+   ========================================== */
+@media (max-width: 768px) {
+    .login-wrapper {
+        min-height: 100vh;
+        width: 100%;
+    }
+
+    .login-container {
+        flex-direction: column;
+        min-height: 100vh;
+    }
+
+    /* Banner superior con la foto en celular */
+    .login-hero-image {
+        flex: none;
+        height: 200px;
+        min-height: 200px;
+        width: 100%;
+    }
+
+    .login-form-section {
+        flex: 1;
+        padding: 2rem 1.5rem;
+        align-items: flex-start; /* Para que sea más cómodo de llenar en cel */
+    }
+}

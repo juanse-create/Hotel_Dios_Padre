@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -51,6 +52,17 @@ export class UsuariosService {
         nombre: 'ASC',
       },
     });
+  }
+
+  private protegerRol(rol: Rol, actorRol?: string) {
+    if (
+      rol.nombre === 'Superadministrador' &&
+      actorRol !== 'Superadministrador'
+    ) {
+      throw new ForbiddenException(
+        'Solo el Superadministrador puede gestionar estas cuentas',
+      );
+    }
   }
 
   private async validarRol(rolId: number): Promise<Rol> {
@@ -127,8 +139,8 @@ export class UsuariosService {
     };
   }
 
-  async create(dto: CreateUsuarioDto) {
-    await this.validarRol(dto.rolId);
+  async create(dto: CreateUsuarioDto, actorRol?: string) {
+    this.protegerRol(await this.validarRol(dto.rolId), actorRol);
 
     await this.validarDuplicados(dto.usuario, dto.correo);
 
@@ -154,7 +166,7 @@ export class UsuariosService {
     };
   }
 
-  async update(id: number, dto: UpdateUsuarioDto) {
+  async update(id: number, dto: UpdateUsuarioDto, actorRol?: string) {
     const usuario = await this.repo.findOne({
       where: {
         id,
@@ -170,7 +182,8 @@ export class UsuariosService {
       dto.correo !== undefined ? dto.correo : (usuario.correo ?? undefined);
     const rolIdActualizado = dto.rolId ?? usuario.rolId;
 
-    await this.validarRol(rolIdActualizado);
+    this.protegerRol(await this.validarRol(usuario.rolId), actorRol);
+    this.protegerRol(await this.validarRol(rolIdActualizado), actorRol);
 
     await this.validarDuplicados(
       usuarioActualizado,
@@ -205,7 +218,7 @@ export class UsuariosService {
     };
   }
 
-  async toggle(id: number) {
+  async toggle(id: number, actorRol?: string) {
     const usuario = await this.repo.findOne({
       where: {
         id,
@@ -216,6 +229,7 @@ export class UsuariosService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
+    this.protegerRol(await this.validarRol(usuario.rolId), actorRol);
     usuario.activo = !usuario.activo;
 
     await this.repo.save(usuario);
@@ -228,7 +242,7 @@ export class UsuariosService {
     };
   }
 
-  async remove(id: number) {
+  async remove(id: number, actorRol?: string) {
     const usuario = await this.repo.findOne({
       where: {
         id,
@@ -239,6 +253,7 @@ export class UsuariosService {
       throw new NotFoundException('Usuario no encontrado');
     }
 
+    this.protegerRol(await this.validarRol(usuario.rolId), actorRol);
     if (!usuario.activo) {
       return {
         message: 'El usuario ya se encuentra inactivo',

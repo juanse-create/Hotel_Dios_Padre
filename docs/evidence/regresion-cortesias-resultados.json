@@ -1,0 +1,56 @@
+{
+  "resultado": "APROBADO",
+  "node": "v24.22.1",
+  "database": "11.8.6-MariaDB-0+deb13u1 from Debian",
+  "chromium": true,
+  "comprobaciones": 468,
+  "navegador": 326,
+  "datos": "Solo sintéticos; esquema sin filas del dump",
+  "matriz": [
+    {
+      "porcentaje": 0,
+      "bruto": 2000,
+      "neto": 2000,
+      "pagado": 100,
+      "saldo": 1900,
+      "reportes": 2000,
+      "resultado": "APROBADO"
+    },
+    {
+      "porcentaje": 10,
+      "bruto": 2000,
+      "neto": 1800,
+      "pagado": 100,
+      "saldo": 1700,
+      "reportes": 1800,
+      "resultado": "APROBADO"
+    },
+    {
+      "porcentaje": 30,
+      "bruto": 2000,
+      "neto": 1400,
+      "pagado": 100,
+      "saldo": 1300,
+      "reportes": 1400,
+      "resultado": "APROBADO"
+    },
+    {
+      "porcentaje": 50,
+      "bruto": 2000,
+      "neto": 1000,
+      "pagado": 100,
+      "saldo": 900,
+      "reportes": 1000,
+      "resultado": "APROBADO"
+    },
+    {
+      "porcentaje": 100,
+      "bruto": 2000,
+      "neto": 0,
+      "pagado": 100,
+      "saldo": 0,
+      "reportes": 0,
+      "resultado": "APROBADO"
+    }
+  ]
+}

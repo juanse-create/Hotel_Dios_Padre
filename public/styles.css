@@ -1,102 +1,159 @@
 * {
-    box-sizing: border-box
+    box-sizing: border-box;
 }
 
 body {
     margin: 0;
     font-family: Arial, sans-serif;
-    /*background: linear-gradient(135deg, #e0f2fe, #f8fafc);*/
-    /* Cambia esto por la ruta de tu imagen */
-    background: url('hotel-dios-padre.jpg');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-attachment: fixed;
+    background: #f1f5f9;
+    min-height: 100vh;
     color: #0f172a;
-
+    /* Foto de fondo con filtro oscuro y desenfoque */
+    background: linear-gradient(rgba(15, 23, 42, 0.65), rgba(15, 23, 42, 0.65)), 
+                url('8.png') center/cover no-repeat fixed;
+    backdrop-filter: blur(8px);
 }
 
-.login {
+
+/* Envoltorio principal que centra la tarjeta en pantalla */
+.login-wrapper {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    grid-template-columns: 1.2fr 1fr;
     align-items: center;
-    gap: 4rem;
-    padding: 8vw
+    padding: 20px;
 }
 
-.brand h1 {
-    font-size: 3rem;
-    color: #075985;
-    margin: 0 0 1rem
-}
-
-.brand p {
-    font-size: 1.25rem
-}
-
-.card {
-    background: #fff;
-    padding: 2rem;
+/* Contenedor tipo Split (2 Columnas) */
+.login-container {
+    display: flex;
+    width: 950px;
+    max-width: 100%;
+    min-height: 560px;
+    background: #ffffff;
     border-radius: 20px;
-    box-shadow: 0 20px 60px #0c4a6e22;
-    display: grid;
-    gap: 1rem;
-    width: 100%;             /* Se adapta a pantallas pequeñas */
-    max-width: 420px;
-
+    overflow: hidden;
+    box-shadow: 0 20px 50px rgba(12, 74, 110, 0.15);
 }
-/* Estilos para la nueva imagen arriba de Iniciar Sesión */
+
+/* Columna Izquierda: Imagen del Balneario */
+.login-hero-image {
+    flex: 1.2;
+    /* Cambia 'hotel-dios-padre.jpg' por el nombre de la foto panorámica */
+    background: url('8.png') center/cover no-repeat;
+    position: relative;
+}
+
+/* Columna Derecha: Sección del Formulario */
+.login-form-section {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 2.5rem 2rem;
+    background: #ffffff;
+}
+
+/* Formulario */
+.card {
+    display: grid;
+    gap: 0.9rem;
+    width: 100%;
+    max-width: 360px;
+}
+
+/* Logo arriba del título */
 .card-logo {
-    max-width: 120px;        /* Ajusta este tamaño al gusto de tu logo */
-    margin: 0 auto 0.5rem;   /* Centra la imagen horizontalmente y le da espacio abajo */
+    max-width: 110px;
+    margin: 0 auto 0.2rem;
     display: block;
     height: auto;
 }
 
 .card h2 {
-    margin: 0;
+    margin: 0 0 0.5rem 0;
     color: #0369a1;
-    text-align: center      /* centra también el texto de "Iniciar sesión" */
+    text-align: center;
+    font-size: 1.6rem;
 }
 
 label {
     display: grid;
-    gap: .4rem;
-    font-weight: 700
+    gap: .3rem;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #334155;
 }
 
 input,
 select,
 button {
-    padding: .9rem;
+    padding: .85rem;
     border-radius: 10px;
     border: 1px solid #cbd5e1;
-    font-size: 1rem
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus,
+select:focus {
+    border-color: #1877c9;
 }
 
 button {
-    background: #0369a1;
+    background: #1877c9;
     color: #fff;
     border: 0;
     font-weight: 700;
-    cursor: pointer
+    cursor: pointer;
+    margin-top: 0.5rem;
+    transition: background 0.2s;
+}
+
+button:hover {
+    background: #0284c7;
 }
 
 #error {
     color: #b91c1c;
-    min-height: 1.2rem
+    min-height: 1.2rem;
+    margin: 0;
+    font-size: 0.85rem;
+    text-align: center;
 }
 
-@media(max-width:760px) {
-    .login {
-        grid-template-columns: 1fr;
-        padding: 1.5rem;
-        gap: 1rem
+.copyright {
+    display: block;
+    text-align: center;
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-top: 0.5rem;
+}
+
+/* Adaptación para Celulares y Tablets */
+@media (max-width: 768px) {
+    .login-container {
+        flex-direction: column;
+        min-height: auto;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+        max-width: 400px; /* Limita el ancho en móviles */
+        background: transparent;
     }
 
-    .brand h1 {
-        font-size: 2rem
+    /* Oculta la foto en celular para que sea rápido y limpio */
+    .login-hero-image {
+        display: block !important; /* Mantiene visible la imagen */
+        flex: none;
+        height: 180px; /* Altura del banner de la foto */
+        width: 100%;
+        background-position: center;
+    }
+
+    .login-form-section {
+        padding: 1.8rem 1.2rem;
+        border-radius: 0 0 20px 20px;
+        background: #ffffff;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
     }
 }

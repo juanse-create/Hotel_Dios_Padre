@@ -9,6 +9,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { UsuarioActual } from '../common/decorators/usuario-actual.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -33,22 +34,35 @@ export class UsuariosController {
   }
 
   @Post()
-  create(@Body() dto: CreateUsuarioDto) {
-    return this.service.create(dto);
+  create(
+    @Body() dto: CreateUsuarioDto,
+    @UsuarioActual() actor: { rol: string },
+  ) {
+    return this.service.create(dto, actor.rol);
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateUsuarioDto) {
-    return this.service.update(id, dto);
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateUsuarioDto,
+    @UsuarioActual() actor: { rol: string },
+  ) {
+    return this.service.update(id, dto, actor.rol);
   }
 
   @Patch(':id/estado')
-  toggle(@Param('id', ParseIntPipe) id: number) {
-    return this.service.toggle(id);
+  toggle(
+    @Param('id', ParseIntPipe) id: number,
+    @UsuarioActual() actor: { rol: string },
+  ) {
+    return this.service.toggle(id, actor.rol);
   }
 
   @Delete(':id')
-  remove(@Param('id', ParseIntPipe) id: number) {
-    return this.service.remove(id);
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @UsuarioActual() actor: { rol: string },
+  ) {
+    return this.service.remove(id, actor.rol);
   }
 }
